@@ -11,6 +11,8 @@ public class Server {
             // this variable is of type "Config", defined in Config.java and is made to hold all the configuration parameters
             Config configuration = parseArgs(args);
 
+            Board board = new Board(configuration);
+
             // create the server socket to listen for incoming connections using the port given
             try (ServerSocket serverSocket = new ServerSocket(configuration.port)) {
                 System.out.println("Bulletin board server listening on port" + configuration.port);
@@ -21,7 +23,7 @@ public class Server {
                     Socket client = serverSocket.accept();
                     System.out.println("New client connected from " + client.getRemoteSocketAddress());
                     // ... and create a new thread to handle the client
-                    new Thread(new ClientHandler(client, configuration)).start();
+                    new Thread(new ClientHandler(client, configuration, board)).start();
                 }
 
             }

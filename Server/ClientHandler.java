@@ -6,7 +6,7 @@ public class ClientHandler implements Runnable {
     private final Socket socket; // client socket
     private final Config config; // server configuration
 
-    ClientHandler(Socket socket, Config config) {
+    ClientHandler(Socket socket, Config config, Board board) {
         this.socket = socket;
         this.config = config;
     }

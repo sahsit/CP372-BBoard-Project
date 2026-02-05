@@ -21,7 +21,7 @@ public class Client {
 }
 
 
-    private void readHandshake() throws IOException {
+    public void readHandshake() throws IOException {
         // first line is OK status response followed by 3 indicating 3 lines of info to follow
         // then send board dimensions, note dimensions, and color list
         // OK 3

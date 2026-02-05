@@ -19,8 +19,6 @@ public class Client {
     this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
     this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 }
-
-
     private void readHandshake() throws IOException {
         // first line is OK status response followed by 3 indicating 3 lines of info to follow
         // then send board dimensions, note dimensions, and color list
@@ -127,11 +125,23 @@ public class Client {
                 System.out.print("\n");
                 String line = in.readLine();
 
+                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
+                    break;
+                }
+
                 String response = client.sendCommand(line);
                 System.out.println(response);
 
-                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
-                    break;
+                String[] parts = response.split("\\s+");
+
+                if (parts[0].equalsIgnoreCase("OK") && parts.length > 1) {
+                    try {
+                        int extraLines = Integer.parseInt(parts[1]);
+                        for (int i = 0; i < extraLines; i++) {
+                            System.out.println(client.in.readLine());
+                        }
+                    } catch (Exception e) {
+                    }
                 }
             }
 

@@ -47,6 +47,19 @@ public class GUI implements ActionListener{
     private int snapshotPinsRemaining = 0;
     private boolean inSnapshot = false;
 
+    //For GET
+    private JTextArea outputArea;
+
+    // Parser state for "OK <n> + N lines" replies
+    private enum PendingReply { NONE, GET_NOTES, GET_PINS }
+    private PendingReply pending = PendingReply.NONE;
+    private int remainingLines = 0;
+
+    private final java.util.List<BoardPanel.NoteView> pendingNotes = new java.util.ArrayList<>();
+    private final java.util.List<BoardPanel.pinsView> pendingPins = new java.util.ArrayList<>();
+
+
+
 
 
     public GUI(String host, int port) {
@@ -57,7 +70,6 @@ public class GUI implements ActionListener{
         try {
             client = new Client(host, port);
             client.readHandshake();
-            client.sendCommand("SYNC");
         } catch (IOException e) {
             JOptionPane.showMessageDialog(null,
                 "Could not connect to server: " + e.getMessage());
@@ -121,6 +133,7 @@ public class GUI implements ActionListener{
 
         getButton = new JButton("GET");
         getButton.addActionListener(this);
+
 
 
         // GET panel
@@ -233,14 +246,26 @@ public class GUI implements ActionListener{
         disconnectButton.addActionListener(this);
 
 
+        // Create label ONCE
         label = new JLabel("Colours: " + String.join(", ", client.colours));
 
+        // Output area (GET output)
+        outputArea = new JTextArea(8, 40);
+        outputArea.setEditable(false);
+        JScrollPane scroll = new JScrollPane(outputArea);
+
+        // Bottom-right panel: label + output
+        JPanel bottomRight = new JPanel(new BorderLayout(5, 5));
+        bottomRight.add(label, BorderLayout.NORTH);
+        bottomRight.add(scroll, BorderLayout.CENTER);
+
+        // Buttons list (right side)
         buttons.add(getPinsButton);
         buttons.add(shakeButton);
         buttons.add(clearButton);
         buttons.add(disconnectButton);
 
-        
+        // Stack the “forms” (POST/GET/PIN/UNPIN)
         JPanel topPanels = new JPanel();
         topPanels.setLayout(new BoxLayout(topPanels, BoxLayout.Y_AXIS));
         topPanels.add(postPanel);
@@ -251,12 +276,17 @@ public class GUI implements ActionListener{
         topPanels.add(Box.createVerticalStrut(10));
         topPanels.add(unpinPanel);
 
+        // Right panel container (create ONCE)
         JPanel rightPanel = new JPanel(new BorderLayout(10, 10));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         rightPanel.add(topPanels, BorderLayout.NORTH);
         rightPanel.add(buttons, BorderLayout.CENTER);
-        rightPanel.add(label, BorderLayout.SOUTH);
+        rightPanel.add(bottomRight, BorderLayout.SOUTH);  // label + output here
+
+        frame.add(rightPanel, BorderLayout.EAST);
+
+
 
         frame.add(rightPanel, BorderLayout.EAST);
 
@@ -264,11 +294,10 @@ public class GUI implements ActionListener{
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
-        client.startListener(
-            msg -> SwingUtilities.invokeLater(() -> handleServerMessage(msg)),
-            ex  -> SwingUtilities.invokeLater(() -> {JOptionPane.showMessageDialog(frame, "Disconnected from server.");
-            })
-        );
+        client.startListener(this::handleServerLine, ex -> {
+            appendOutput("Disconnected: " + (ex == null ? "closed" : ex.getMessage()));
+        });
+
 
         //Get updates from sync
         sendToServer("SYNC");
@@ -307,56 +336,54 @@ public class GUI implements ActionListener{
 
 
         } else if (e.getSource() == getButton) {
-            //sendToServer("GET");
-            //System.out.println("GET");
+            // Build GET command exactly like your server expects:
+            // GET colour=<color|null> contains=<x|null> <y> refersTo=<msg|null>
 
-            try {
-                String colour = getColour.getText().trim();
-                String xText = getContainsX.getText().trim();
-                String yText = getContainsY.getText().trim();
-                String refersTo = getRefersTo.getText().trim();
+            String color = getColour.getText().trim();
+            if (color.isEmpty()) color = "null";
 
+            String xText = getContainsX.getText().trim();
+            String yText = getContainsY.getText().trim();
+            String containsPart;
+            String yPart;
 
-
-                StringBuilder cmd = new StringBuilder("GET");
-
-                if (colour.isEmpty()) {
-                    cmd.append(" color=null");
-                } else {
-                    cmd.append(" color=").append(colour);
-                }
-
-                //Needs both x and y
-                if (!xText.isEmpty() && !yText.isEmpty()) { 
-                    int x = Integer.parseInt(xText);
-                    int y = Integer.parseInt(yText);
-                    cmd.append(" contains=").append(x).append(" ").append(y);
-                } else if(xText.isEmpty() && yText.isEmpty()) {
-                    cmd.append(" contains=null null");
-                } else {
-                    int x = Integer.parseInt(xText);
-                    int y = Integer.parseInt(yText);
-                }
-
-                if (!refersTo.isEmpty()) {
-                    cmd.append(" refersTo=").append(refersTo);
-                } else if(refersTo.isEmpty()){
-                    cmd.append(" refersTo=null");
-                }
-
-                sendToServer(cmd.toString());
-
-
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(frame,
-                        "X and Y must be integers.",
-                        "Input Error",
-                        JOptionPane.ERROR_MESSAGE);
+            if (xText.isEmpty() || yText.isEmpty()) {
+                containsPart = "contains=null";
+                yPart = "0"; // placeholder because server expects parts[3], but it won’t parse if contains ends with null
+            } else {
+                containsPart = "contains=" + xText;
+                yPart = yText;
             }
+
+            String refers = getRefersTo.getText().trim();
+            if (refers.isEmpty()) refers = "null";
+
+            String cmd = "GET " +
+                    "colour=" + color + " " +
+                    containsPart + " " + yPart + " " +
+                    "refersTo=" + refers;
+
+                // Arm parser BEFORE sending so reply is classified correctly
+            pending = PendingReply.GET_NOTES;
+            remainingLines = 0;
+            pendingNotes.clear();
+            pendingPins.clear();
+
+            appendOutput(">> " + cmd);
+            sendToServer(cmd);
 
         } else if (e.getSource() == getPinsButton){
 
-            sendToServer("GET PINS");
+            String cmd = "GET PINS";
+
+            // Arm parser BEFORE sending
+            pending = PendingReply.GET_PINS;
+            remainingLines = 0;
+            pendingNotes.clear();
+            pendingPins.clear();
+
+            appendOutput(">> " + cmd);
+            sendToServer(cmd);
 
         } else if (e.getSource() == pinButton){
             try {
@@ -485,6 +512,7 @@ public class GUI implements ActionListener{
         }
 
 
+
         // Only handle EVENT messages here; everything else is a reply/error/status line.
         if (!msg.startsWith("EVENT")) {
             System.out.println("FROM SERVER (non-event): " + msg);
@@ -575,6 +603,212 @@ public class GUI implements ActionListener{
         }
     }
 
+    //For GET
+    private void appendOutput(String msg) {
+        SwingUtilities.invokeLater(() -> {
+            outputArea.append(msg);
+            if (!msg.endsWith("\n")) outputArea.append("\n");
+            outputArea.setCaretPosition(outputArea.getDocument().getLength());
+        });
+    }
 
+    private void handleServerLine(String line) {
+        // Always run parsing on the Swing thread (safe UI updates)
+        SwingUtilities.invokeLater(() -> {
+            if (line == null) return;
+
+            // 1) Broadcast events: all clients apply
+            if (line.startsWith("EVENT ")) {
+                handleEvent(line);
+                return;
+            }
+
+            // 2) Errors: show on this client only
+            if (line.startsWith("ERR")) {
+                appendOutput(line);
+                // Cancel any pending reply to avoid being stuck
+                pending = PendingReply.NONE;
+                remainingLines = 0;
+                pendingNotes.clear();
+                pendingPins.clear();
+                return;
+            }
+
+            // 3) If we are in the middle of collecting GET/GETPINS detail lines
+            if (pending != PendingReply.NONE && remainingLines > 0) {
+                if (pending == PendingReply.GET_NOTES) {
+                    parseNoteLine(line);   // expects "NOTE ..."
+                } else if (pending == PendingReply.GET_PINS) {
+                    parsePinLine(line);    // expects "PIN ..."
+                }
+
+                remainingLines--;
+
+                if (remainingLines == 0) {
+                    // Done → replace what THIS client is displaying
+                    if (pending == PendingReply.GET_NOTES) {
+                        boardPanel.setNotes(new java.util.ArrayList<>(pendingNotes));
+                        appendOutput("GET returned " + pendingNotes.size() + " note(s).");
+                    } else if (pending == PendingReply.GET_PINS) {
+                        boardPanel.setPins(new java.util.ArrayList<>(pendingPins));
+                        appendOutput("GET PINS returned " + pendingPins.size() + " pin(s).");
+                    }
+
+                    pending = PendingReply.NONE;
+                    pendingNotes.clear();
+                    pendingPins.clear();
+                }
+                return;
+            }
+
+            // 4) Fresh reply header: "OK <n>"
+            if (line.startsWith("OK ")) {
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length < 2) {
+                    appendOutput("Bad OK line: " + line);
+                    return;
+                }
+
+                int n;
+                try {
+                    n = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException e) {
+                    appendOutput("Bad OK count: " + line);
+                    return;
+                }
+
+                // If we don't know what we're waiting for, just show it
+                if (pending == PendingReply.NONE) {
+                    appendOutput("OK " + n);
+                    return;
+                }
+
+                remainingLines = n;
+                appendOutput(line);
+                if (n == 0) {
+                    // immediate completion
+                    if (pending == PendingReply.GET_NOTES) {
+                        boardPanel.setNotes(java.util.Collections.<BoardPanel.NoteView>emptyList());
+                        appendOutput("GET returned 0 note(s).");
+                    } else if (pending == PendingReply.GET_PINS) {
+                        boardPanel.setPins(java.util.Collections.<BoardPanel.pinsView>emptyList());
+                        appendOutput("GET PINS returned 0 pin(s).");
+                    }
+                    pending = PendingReply.NONE;
+                }
+                return;
+            }
+
+            // 5) Any other non-event lines (e.g., "OK NOTE_POSTED", "OK PIN_ADDED", etc.)
+            appendOutput(line);
+        });
+    }
+
+    private void handleEvent(String line) {
+        // EVENT POST x y color message...
+        // EVENT PIN x y
+        // EVENT UNPIN x y
+        // EVENT BOARD_CLEARED
+        // EVENT BOARD_SHAKEN
+
+        String[] parts = line.split("\\s+");
+        if (parts.length < 2) return;
+
+        String type = parts[1].toUpperCase();
+
+        switch (type) {
+            case "POST": {
+                // EVENT POST x y color message...
+                if (parts.length < 6) return;
+                int x = Integer.parseInt(parts[2]);
+                int y = Integer.parseInt(parts[3]);
+                String color = parts[4];
+
+                // message is remainder after "EVENT POST x y color "
+                int prefixLen = ("EVENT POST " + parts[2] + " " + parts[3] + " " + parts[4] + " ").length();
+                String msg = line.length() >= prefixLen ? line.substring(prefixLen) : "";
+
+                boardPanel.postNote(new BoardPanel.NoteView(x, y, color, msg, false));
+                boardPanel.repaint();
+                break;
+            }
+            case "PIN": {
+                if (parts.length < 4) return;
+                int x = Integer.parseInt(parts[2]);
+                int y = Integer.parseInt(parts[3]);
+                boardPanel.addPin(new BoardPanel.pinsView(x, y));
+                boardPanel.repaint();
+                break;
+            }
+            case "UNPIN": {
+                if (parts.length < 4) return;
+                int x = Integer.parseInt(parts[2]);
+                int y = Integer.parseInt(parts[3]);
+                boardPanel.removePin(x, y);
+                boardPanel.repaint();
+                break;
+            }
+            case "BOARD_CLEARED": {
+                boardPanel.clearAll();
+                boardPanel.repaint();
+                break;
+            }
+            case "BOARD_SHAKEN": {
+                // Your server removes unpinned notes; easiest client-side is to request a full snapshot
+                // If you want, you can call: client.sendCommand("SYNC");
+                appendOutput("Board shaken (consider SYNC to reflect removed notes).");
+                break;
+            }
+        }
+    }
+
+    private void parseNoteLine(String line) {
+        if (!line.startsWith("NOTE ")) {
+            appendOutput("Unexpected line (expected NOTE): " + line);
+            return;
+        }
+
+        // NOTE x y color ...message... PINNED=true
+        String[] parts = line.split("\\s+");
+        if (parts.length < 6) {
+            appendOutput("Bad NOTE line: " + line);
+            return;
+        }
+
+        int x = Integer.parseInt(parts[1]);
+        int y = Integer.parseInt(parts[2]);
+        String color = parts[3];
+
+        // last token must be PINNED=...
+        String pinnedToken = parts[parts.length - 1];
+        boolean pinned = pinnedToken.startsWith("PINNED=") && pinnedToken.substring(7).equalsIgnoreCase("true");
+
+        // message is everything between color and PINNED=
+        StringBuilder sb = new StringBuilder();
+        for (int i = 4; i < parts.length - 1; i++) {
+            if (i > 4) sb.append(' ');
+            sb.append(parts[i]);
+        }
+        String msg = sb.toString();
+
+        pendingNotes.add(new BoardPanel.NoteView(x, y, color, msg, pinned));
+    }
+
+    private void parsePinLine(String line) {
+        if (!line.startsWith("PIN ")) {
+            appendOutput("Unexpected line (expected PIN): " + line);
+            return;
+        }
+        String[] parts = line.split("\\s+");
+        if (parts.length != 3) {
+            appendOutput("Bad PIN line: " + line);
+            return;
+        }
+        int x = Integer.parseInt(parts[1]);
+        int y = Integer.parseInt(parts[2]);
+        pendingPins.add(new BoardPanel.pinsView(x, y));
+    }
+
+    
 
 }

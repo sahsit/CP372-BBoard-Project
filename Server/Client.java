@@ -10,9 +10,9 @@ public class Client {
     private final Socket socket;
     private final BufferedReader in;
     private final BufferedWriter out;
-    private int boardW, boardH;
-    private int noteW, noteH;
-    private List<String> colours = new ArrayList<>();
+    public int boardW, boardH;
+    public int noteW, noteH;
+    public List<String> colours = new ArrayList<>();
 
     public Client(String host, int port) throws IOException {
     this.socket = new Socket(host, port);
@@ -110,47 +110,35 @@ public class Client {
     }
 
     
-    public static void main(String[] args) {
+    // public static void main(String[] args) {
 
-        //java Client localhost 12345
-        String host = args[0];
-        int port = Integer.parseInt(args[1]);
+    //     //java Client localhost 12345
+    //     String host = args[0];
+    //     int port = Integer.parseInt(args[1]);
 
-        try {
-            Client client = new Client(host, port);
-            client.readHandshake();
+    //     try {
+    //         Client client = new Client(host, port);
+    //         client.readHandshake();
 
-            System.out.println("\nType commands (DISCONNECT to quit):");
-            BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+    //         System.out.println("\nType commands (DISCONNECT to quit):");
+    //         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 
-            while (true) {
-                System.out.print("\n");
-                String line = in.readLine();
+    //         while (true) {
+    //             System.out.print("\n");
+    //             String line = in.readLine();
 
-                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
-                    break;
-                }
+    //             String response = client.sendCommand(line);
+    //             System.out.println(response);
 
-                String response = client.sendCommand(line);
-                System.out.println(response);
+    //             if (line.trim().equalsIgnoreCase("DISCONNECT")) {
+    //                 break;
+    //             }
+    //         }
 
-                String[] parts = response.split("\\s+");
+    //         client.close();
 
-                if (parts[0].equalsIgnoreCase("OK") && parts.length > 1) {
-                    try {
-                        int extraLines = Integer.parseInt(parts[1]);
-                        for (int i = 0; i < extraLines; i++) {
-                            System.out.println(client.in.readLine());
-                        }
-                    } catch (Exception e) {
-                    }
-                }
-            }
-
-            client.close();
-
-        } catch (IOException e) {
-            System.err.println("Client error: " + e.getMessage());
-        }
-    }
+    //     } catch (IOException e) {
+    //         System.err.println("Client error: " + e.getMessage());
+    //     }
+    // }
 }

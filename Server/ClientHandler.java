@@ -98,6 +98,9 @@ public class ClientHandler implements Runnable {
 
     // if the command is the filtered "GET"...
     private void handleFilteredGet(String[] parts, BufferedWriter out) throws IOException {
+
+        System.out.println("handleFilteredGet");
+
         //assuming the GUI sends: GET colour=<color> contains=<x> <y> refersTo=<message>
         // parts[0] = GET
         // parts[1] = colour=blue

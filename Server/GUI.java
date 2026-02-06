@@ -304,7 +304,9 @@ public class GUI implements ActionListener{
 
                 StringBuilder cmd = new StringBuilder("GET");
 
-                if (!colour.isEmpty()) {
+                if (colour.isEmpty()) {
+                    cmd.append(" color=null");
+                } else {
                     cmd.append(" color=").append(colour);
                 }
 
@@ -313,10 +315,17 @@ public class GUI implements ActionListener{
                     int x = Integer.parseInt(xText);
                     int y = Integer.parseInt(yText);
                     cmd.append(" contains=").append(x).append(" ").append(y);
+                } else if(xText.isEmpty() && yText.isEmpty()) {
+                    cmd.append(" contains=null");
+                } else {
+                    int x = Integer.parseInt(xText);
+                    int y = Integer.parseInt(yText);
                 }
 
                 if (!refersTo.isEmpty()) {
                     cmd.append(" refersTo=").append(refersTo);
+                } else if(refersTo.isEmpty()){
+                    cmd.append(" refersTo=null");
                 }
 
                 sendToServer(cmd.toString());
@@ -373,7 +382,8 @@ public class GUI implements ActionListener{
     private void sendToServer(String cmd) {
         new Thread(() -> {
             try {
-                client.sendCommand(cmd);
+                String result = client.sendCommand(cmd);
+                System.out.println(result);
             } catch (IOException ex) {
                 ex.printStackTrace();
             }

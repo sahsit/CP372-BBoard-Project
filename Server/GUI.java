@@ -323,7 +323,7 @@ public class GUI implements ActionListener{
                     int y = Integer.parseInt(yText);
                     cmd.append(" contains=").append(x).append(" ").append(y);
                 } else if(xText.isEmpty() && yText.isEmpty()) {
-                    cmd.append(" contains=null");
+                    cmd.append(" contains=null null");
                 } else {
                     int x = Integer.parseInt(xText);
                     int y = Integer.parseInt(yText);

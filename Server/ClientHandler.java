@@ -1,12 +1,16 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Class to handle client connections
 public class ClientHandler implements Runnable {
+    private static final Set<ClientHandler> CLIENTS = ConcurrentHashMap.newKeySet();
     private final Socket socket; // client socket
     private final Config config; // server configuration
     private final Board board;
+    private BufferedWriter out; // output stream to client
+    private final Object outLock = new Object(); // lock for synchronizing writes to client
 
     ClientHandler(Socket socket, Config config, Board board) {
         this.socket = socket;
@@ -22,7 +26,10 @@ public class ClientHandler implements Runnable {
             Socket s = socket;
             BufferedWriter out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-        ) { 
+        ) {
+            
+            this.out = out;
+            CLIENTS.add(this);
 
             // start handshake process with client
             sendHandshake(out, config);
@@ -41,18 +48,33 @@ public class ClientHandler implements Runnable {
 
                 try {
                     switch (cmd) {
-                        case "POST": handlePost(parts, out); break;
+                        case "POST": handlePost(parts, out);
+                        broadcastLine("EVENT NOTE_ADDED");
+                        break;
                         case "GET": handleGet(cmd, parts, out); break;
-                        case "PIN": handlePin(parts, out); break;
-                        case "UNPIN": handleUnpin(parts, out); break;
-                        case "CLEAR": board.clear(); out.write("OK CLEARED\n"); break;
-                        case "SHAKE":  board.shake(); out.write("OK SHAKE_COMPLETE\n"); break;
+                        case "PIN": handlePin(parts, out);
+                        broadcastLine("EVENT PIN_ADDED");
+                        break;
+                        case "UNPIN": handleUnpin(parts, out);
+                        broadcastLine("EVENT PIN_REMOVED");
+                        break;
+                        case "CLEAR": board.clear();
+                        out.write("OK CLEARED\n");
+                        broadcastLine("EVENT BOARD_CLEARED");
+                        break;
+                        case "SHAKE":  board.shake();
+                        out.write("OK SHAKE_COMPLETE\n");
+                        broadcastLine("EVENT BOARD_SHAKEN");
+                        break;
                         case "DISCONNECT": return;
                         default: out.write("ERR UNKNOWN_COMMAND\n"); break; // MAYBE USE BOARDEXCEPTION FOR THIS?
                     }
                     out.flush();
                 } catch (Exception e) {
                     out.write("ERR " + e.getMessage() + "\n");
+                } finally {
+                    CLIENTS.remove(this);
+                    out.write("Client disconnected: " + socket.getRemoteSocketAddress());
                 }
                 out.flush();
 
@@ -229,7 +251,25 @@ public class ClientHandler implements Runnable {
         out.flush();
     }
 
-    
-        
 
+    private void sendLine(String line) throws IOException {
+        synchronized (outLock) {
+            out.write(line);
+            out.write("\n");
+            out.flush();
+        }
+    }
+
+    private static void broadcastLine(String line) {
+        for (ClientHandler ch : CLIENTS) {
+            try {
+                if (ch.out != null) {
+                    ch.sendLine(line);
+                }
+            } catch (IOException e) {
+                CLIENTS.remove(ch);
+            }
+        }
+    }
+    
 }

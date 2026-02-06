@@ -99,6 +99,10 @@ public class Board {
                 throw new BoardException("NO_NOTE_AT_COORDINATE ", "Coordinate (" + x + ", " + y + ") does not contain a note");
             }
 
+            if (pins.contains(new Point(x, y)) == true) {
+                throw new BoardException("PIN_ALREADY_EXISTS ", "Coordinate (" + x + ", " + y + ") already contains a pin");
+            }
+
             pins.add(new Point(x, y));
         }
 

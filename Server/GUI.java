@@ -18,6 +18,7 @@ public class GUI implements ActionListener{
 
     JButton postButton;
     JButton getButton;
+    JButton getPinsButton;
     JButton pinButton;
     JButton unpinButton;
     JButton shakeButton;
@@ -33,6 +34,13 @@ public class GUI implements ActionListener{
     JTextField getContainsX = new JTextField(5);
     JTextField getContainsY = new JTextField(5);
     JTextField getRefersTo = new JTextField(10);
+
+    JTextField pinX = new JTextField(5);
+    JTextField pinY = new JTextField(5);
+
+    JTextField unpinX = new JTextField(5);
+    JTextField unpinY = new JTextField(5);
+
 
 
 
@@ -143,11 +151,69 @@ public class GUI implements ActionListener{
 
 
 
+
+        getPinsButton = new JButton("GET PINS");
+        getPinsButton.addActionListener(this);
+
+
+        //Pins Panel
         pinButton = new JButton("PIN");
         pinButton.addActionListener(this);
 
+        JPanel pinPanel = new JPanel(new GridBagLayout());
+        pinPanel.setBorder(BorderFactory.createTitledBorder("PIN"));
+
+        GridBagConstraints pinBag = new GridBagConstraints();
+        pinBag.insets = new Insets(2, 2, 2, 2);
+        pinBag.anchor = GridBagConstraints.WEST;
+
+        pinBag.gridx = 0; pinBag.gridy = 0;
+        pinPanel.add(new JLabel("X:"), pinBag);
+
+        pinBag.gridx = 1;
+        pinPanel.add(pinX, pinBag);
+
+        pinBag.gridx = 0; pinBag.gridy = 1;
+        pinPanel.add(new JLabel("Y:"), pinBag);
+
+        pinBag.gridx = 1;
+        pinPanel.add(pinY, pinBag);
+
+        pinBag.gridx = 0; pinBag.gridy = 2;
+        pinBag.gridwidth = 2;
+        pinBag.anchor = GridBagConstraints.CENTER;
+        pinBag.fill = GridBagConstraints.HORIZONTAL;
+        pinPanel.add(pinButton, pinBag);
+
+
         unpinButton = new JButton("UNPIN");
         unpinButton.addActionListener(this);
+
+        JPanel unpinPanel = new JPanel(new GridBagLayout());
+        unpinPanel.setBorder(BorderFactory.createTitledBorder("UNPIN"));
+
+        GridBagConstraints unpinBag = new GridBagConstraints();
+        unpinBag.insets = new Insets(2, 2, 2, 2);
+        unpinBag.anchor = GridBagConstraints.WEST;
+
+        unpinBag.gridx = 0; unpinBag.gridy = 0;
+        unpinPanel.add(new JLabel("X:"), unpinBag);
+
+        unpinBag.gridx = 1;
+        unpinPanel.add(unpinX, unpinBag);
+
+        unpinBag.gridx = 0; unpinBag.gridy = 1;
+        unpinPanel.add(new JLabel("Y:"), unpinBag);
+
+        unpinBag.gridx = 1;
+        unpinPanel.add(unpinY, unpinBag);
+
+        unpinBag.gridx = 0; unpinBag.gridy = 2;
+        unpinBag.gridwidth = 2;
+        unpinBag.anchor = GridBagConstraints.CENTER;
+        unpinBag.fill = GridBagConstraints.HORIZONTAL;
+        unpinPanel.add(unpinButton, unpinBag);
+
 
         shakeButton = new JButton("SHAKE");
         shakeButton.addActionListener(this);
@@ -161,13 +227,10 @@ public class GUI implements ActionListener{
 
         label = new JLabel("Colours: " + String.join(", ", client.colours));
 
-        
-        buttons.add(pinButton);
-        buttons.add(unpinButton);
+        buttons.add(getPinsButton);
         buttons.add(shakeButton);
         buttons.add(clearButton);
         buttons.add(disconnectButton);
-        buttons.add(label);
 
         
         JPanel topPanels = new JPanel();
@@ -175,8 +238,11 @@ public class GUI implements ActionListener{
         topPanels.add(postPanel);
         topPanels.add(Box.createVerticalStrut(10));
         topPanels.add(getPanel);
+        topPanels.add(Box.createVerticalStrut(10));
+        topPanels.add(pinPanel);
+        topPanels.add(Box.createVerticalStrut(10));
+        topPanels.add(unpinPanel);
 
-        
         JPanel rightPanel = new JPanel(new BorderLayout(10, 10));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -189,6 +255,7 @@ public class GUI implements ActionListener{
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+
 
     }
 
@@ -228,12 +295,32 @@ public class GUI implements ActionListener{
             //System.out.println("GET");
 
             try {
-                int x = Integer.parseInt(getContainsX.getText().trim());
-                int y = Integer.parseInt(getContainsY.getText().trim());
                 String colour = getColour.getText().trim();
-                String contains = getRefersTo.getText().trim();
+                String xText = getContainsX.getText().trim();
+                String yText = getContainsY.getText().trim();
+                String refersTo = getRefersTo.getText().trim();
 
-                sendToServer("GET color=" + colour + " contains=" + x + " " + y + " refersTo=" + contains);
+
+
+                StringBuilder cmd = new StringBuilder("GET");
+
+                if (!colour.isEmpty()) {
+                    cmd.append(" color=").append(colour);
+                }
+
+                //Needs both x and y
+                if (!xText.isEmpty() && !yText.isEmpty()) { 
+                    int x = Integer.parseInt(xText);
+                    int y = Integer.parseInt(yText);
+                    cmd.append(" contains=").append(x).append(" ").append(y);
+                }
+
+                if (!refersTo.isEmpty()) {
+                    cmd.append(" refersTo=").append(refersTo);
+                }
+
+                sendToServer(cmd.toString());
+
 
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(frame,
@@ -242,10 +329,35 @@ public class GUI implements ActionListener{
                         JOptionPane.ERROR_MESSAGE);
             }
 
+        } else if (e.getSource() == getPinsButton){
+
+            sendToServer("GET PINS");
+
         } else if (e.getSource() == pinButton){
-            sendToServer("PIN");
+            try {
+                int x = Integer.parseInt(pinX.getText().trim());
+                int y = Integer.parseInt(pinY.getText().trim());
+
+                sendToServer("PIN " + x + " " + y);
+
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(frame,
+                        "X and Y must be integers.",
+                        "Input Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+
         } else if (e.getSource() == unpinButton){
-            sendToServer("UNPIN");
+            try {
+                int x = Integer.parseInt(unpinX.getText().trim());
+                int y = Integer.parseInt(unpinY.getText().trim());
+                sendToServer("UNPIN " + x + " " + y);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(frame,
+                        "X and Y must be integers.",
+                        "Input Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         } else if (e.getSource() == shakeButton){
             sendToServer("SHAKE");
         } else if (e.getSource() == clearButton){

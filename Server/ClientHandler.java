@@ -49,23 +49,27 @@ public class ClientHandler implements Runnable {
 
                 try {
                     switch (cmd) {
-                        case "POST":
-                            handlePost(parts, out);
-                            broadcastLine("EVENT POST 10 20 blue hello world"); // hardcoded OK
+                        case "POST": {
+                            String event = handlePost(parts);
+                            broadcastLine(event);
                             break;
-
+                        }
                         case "GET":
                             handleGet(cmd, parts, out);
                             break;
 
                         case "PIN":
                             handlePin(parts, out);
-                            broadcastLine("EVENT PIN 70 70"); // hardcoded OK
+                            int x1 = Integer.parseInt(parts[1]);
+                            int y1 = Integer.parseInt(parts[2]);
+                            broadcastLine("EVENT PIN " + x1 + " " + y1);
                             break;
 
                         case "UNPIN":
                             handleUnpin(parts, out);
-                            broadcastLine("EVENT UNPIN 70 70"); // hardcoded OK
+                            int x2 = Integer.parseInt(parts[1]);
+                            int y2 = Integer.parseInt(parts[2]);
+                            broadcastLine("EVENT UNPIN " + x2 + " " + y2);
                             break;
 
                         case "CLEAR":
@@ -88,7 +92,7 @@ public class ClientHandler implements Runnable {
                             break;
 
                         default:
-                            out.write("ERR UNKNOWN_COMMAND\n");
+                            sendLine("ERR UNKNOWN_COMMAND\n");
                             break;
                     }
                     out.flush();
@@ -202,71 +206,45 @@ public class ClientHandler implements Runnable {
     
     }
 
-    private void handlePost(String[] parts, BufferedWriter out) throws IOException {
-        try {
-        // parts[0] is "POST"
+    private String handlePost(String[] parts) throws Exception {
         int x = Integer.parseInt(parts[1]);
         int y = Integer.parseInt(parts[2]);
         String color = parts[3];
-
-        // Everything from parts[4] to the end is the message
+    
         StringBuilder messageBuilder = new StringBuilder();
         for (int i = 4; i < parts.length; i++) {
+            if (i > 4) messageBuilder.append(" ");
             messageBuilder.append(parts[i]);
-            // Add a space back between words, but not after the last word
-            if (i < parts.length - 1) {
-                messageBuilder.append(" ");
-            }
         }
-
+    
         String message = messageBuilder.toString();
-        
+    
         board.post(x, y, color, message);
-        out.write("OK NOTE_POSTED\n");
-        } catch (NumberFormatException e) {
-            // If x or y weren't numbers
-            out.write("ERROR Invalid coordinates. Usage: POST x y color message\n");
-        } catch (ArrayIndexOutOfBoundsException e) {
-            // If the user forgot a parameter (e.g., just sent "POST 10 10")
-            out.write("ERROR Missing parameters. Usage: POST x y color message\n");
-        } catch (Exception e) {
-            // Any other unexpected error
-            out.write("ERROR " + e.getMessage() + "\n");
-        }
+    
+        sendLine("OK NOTE_POSTED");
+    
+        return ("EVENT POST " + x + " " + y + " " + color + " " + message);
+    }
+
+    private void handlePin(String[] parts, BufferedWriter out) throws Exception {
+
+        int x = Integer.parseInt(parts[1]);
+        int y = Integer.parseInt(parts[2]);
+
+        board.pin(x, y);
+        out.write("OK PIN_ADDED\n");
+
         out.flush();
     }
 
-    private void handlePin(String[] parts, BufferedWriter out) throws IOException {
-        try {
-            int x = Integer.parseInt(parts[1]);
-            int y = Integer.parseInt(parts[2]);
+    private void handleUnpin(String[] parts, BufferedWriter out) throws Exception {
 
-            board.pin(x, y);
-            out.write("OK PIN_ADDED\n");
-        } catch (NumberFormatException e) {
-            out.write("ERROR Invalid coordinates. Usage: PIN x y\n");
-        } catch (ArrayIndexOutOfBoundsException e) {
-            out.write("ERROR Missing parameters. Usage: PIN x y\n");
-        } catch (Exception e) {
-            out.write("ERROR " + e.getMessage() + "\n");
-        }
-        out.flush();
-    }
+        int x = Integer.parseInt(parts[1]);
+        int y = Integer.parseInt(parts[2]);
 
-    private void handleUnpin(String[] parts, BufferedWriter out) throws IOException {
-        try {
-            int x = Integer.parseInt(parts[1]);
-            int y = Integer.parseInt(parts[2]);
+        board.unpin(x, y);
+        out.write("OK\n");
 
-            board.unpin(x, y);
-            out.write("OK\n");
-        } catch (NumberFormatException e) {
-            out.write("ERROR Invalid coordinates. Usage: UNPIN x y\n");
-        } catch (ArrayIndexOutOfBoundsException e) {
-            out.write("ERROR Missing parameters. Usage: UNPIN x y\n");
-        } catch (Exception e) {
-            out.write("ERROR " + e.getMessage() + "\n");
-        }
         out.flush();
     }
 

@@ -58,6 +58,14 @@ public class GUI implements ActionListener{
             System.exit(1);
         }
 
+        client.startListener(
+            msg -> SwingUtilities.invokeLater(() -> handleServerMessage(msg)),
+            ex  -> SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(frame, "Disconnected from server.");
+            })
+        );
+
+
         frame = new JFrame("Title");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
@@ -382,11 +390,18 @@ public class GUI implements ActionListener{
     private void sendToServer(String cmd) {
         new Thread(() -> {
             try {
-                String result = client.sendCommand(cmd);
-                System.out.println(result);
+                client.sendCommand(cmd);
+                //String result = client.sendCommand(cmd);
+                //System.out.println(result);
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
         }).start();
     }
+
+    private void handleServerMessage(String msg) {
+        System.out.println("FROM SERVER: " + msg);
+        // Later you'll parse and update the GUI/board model here
+    }
+
 }

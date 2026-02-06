@@ -3,6 +3,8 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 
 public class Client {
@@ -14,11 +16,18 @@ public class Client {
     public int noteW, noteH;
     public List<String> colours = new ArrayList<>();
 
+    private Thread listenerThread;
+    private final AtomicBoolean listening = new AtomicBoolean(false);
+
+    
+    private volatile Consumer<String> onMessage = (msg) -> {};
+    private volatile Consumer<Exception> onDisconnect = (ex) -> {};
+
     public Client(String host, int port) throws IOException {
     this.socket = new Socket(host, port);
     this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
     this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-}
+    }
 
 
     public void readHandshake() throws IOException {
@@ -94,15 +103,48 @@ public class Client {
     }
 
     
-    public String sendCommand(String command) throws IOException {
+    public void sendCommand(String command) throws IOException {
         out.write(command);
         out.write("\n");
         out.flush();
 
-        String response = in.readLine();
-        if (response == null) throw new IOException("Server closed connection.");
-        return response;
+        //String response = in.readLine();
+        //if (response == null) throw new IOException("Server closed connection.");
+        //return response;
     }
+
+    public void stopListener() {
+        listening.set(false);
+        try { socket.close(); } catch (IOException ignored) {}
+    }
+
+
+    public void startListener(Consumer<String> onMessage, Consumer<Exception> onDisconnect) {
+        this.onMessage = (onMessage != null) ? onMessage : (m) -> {};
+        this.onDisconnect = (onDisconnect != null) ? onDisconnect : (e) -> {};
+
+        if (listening.getAndSet(true)) return; // already running
+
+        listenerThread = new Thread(() -> {
+            Exception cause = null;
+            try {
+                String line;
+                while (listening.get() && (line = in.readLine()) != null) {
+                    this.onMessage.accept(line);
+                }
+            } catch (Exception e) {
+                cause = e;
+            } finally {
+                listening.set(false);
+                try { socket.close(); } catch (IOException ignored) {}
+                this.onDisconnect.accept(cause);
+            }
+        }, "client-listener");
+
+        listenerThread.setDaemon(true);
+        listenerThread.start();
+    }
+
 
     //Close helper
     public void close() {

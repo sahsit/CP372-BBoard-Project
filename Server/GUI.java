@@ -59,20 +59,16 @@ public class GUI implements ActionListener{
             System.exit(1);
         }
 
-        client.startListener(
-            msg -> SwingUtilities.invokeLater(() -> handleServerMessage(msg)),
-            ex  -> SwingUtilities.invokeLater(() -> {JOptionPane.showMessageDialog(frame, "Disconnected from server.");
-            })
-        );
-
 
         frame = new JFrame("Title");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
         //Board
-        BoardPanel boardPanel = new BoardPanel(client.boardW, client.boardH, client.noteW, client.noteH);
+        this.boardPanel = new BoardPanel(client.boardW, client.boardH, client.noteW, client.noteH);
         frame.add(boardPanel, BorderLayout.CENTER);
+
+        
 
 
         //Button Panel
@@ -263,6 +259,11 @@ public class GUI implements ActionListener{
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
+        client.startListener(
+            msg -> SwingUtilities.invokeLater(() -> handleServerMessage(msg)),
+            ex  -> SwingUtilities.invokeLater(() -> {JOptionPane.showMessageDialog(frame, "Disconnected from server.");
+            })
+        );
 
     }
 
@@ -400,68 +401,107 @@ public class GUI implements ActionListener{
 
     //Handling the broadcast message
     private void handleServerMessage(String msg) {
-        if (msg == null || msg.isBlank()) return;
+        if (msg == null) return;
 
-        // Example expected:
-        // EVENT POST 10 20 red hello world
-        // EVENT CLEAR
-        String[] parts = msg.trim().split("\\s+", 3); // kind + action + rest
-        if (parts.length < 2) return;
+        msg = msg.trim();
+        if (msg.isEmpty()) return;
 
-        String kind = parts[0];
-        String action = parts[1];
-        String rest = (parts.length == 3) ? parts[2] : "";
+        // If the UI isn't ready yet, don't crash. Just log.
+        if (boardPanel == null) {
+            System.out.println("Received before boardPanel initialized: " + msg);
+            return;
+        }
 
-        if (!kind.equalsIgnoreCase("EVENT")) {
-            // could be REPLY/ERROR; show somewhere
+        // Only handle EVENT messages here; everything else is a reply/error/status line.
+        if (!msg.startsWith("EVENT")) {
             System.out.println("FROM SERVER (non-event): " + msg);
             return;
         }
 
-        switch (action.toUpperCase()) {
-            case "POST": {
-                // rest: "x y colour message..."
-                String[] p = rest.split("\\s+", 4); // x y colour message...
-                if (p.length < 4) return;
+        // Expected:
+        // EVENT POST 10 20 blue hello world
+        // EVENT PIN  12 34
+        // EVENT UNPIN 12 34
+        // EVENT CLEAR
+        String[] parts = msg.split("\\s+", 3); // EVENT + action + rest
+        if (parts.length < 2) {
+            System.out.println("Bad EVENT (missing action): " + msg);
+            return;
+        }
 
-                int x = Integer.parseInt(p[0]);
-                int y = Integer.parseInt(p[1]);
-                String colour = p[2];
-                String message = p[3];
+        String action = parts[1];
+        String rest = (parts.length == 3) ? parts[2] : "";
 
-                boardPanel.postNote(new BoardPanel.NoteView(x, y, colour, message, false));
-                boardPanel.repaint();
-                break;
-            } case "PIN": {
-                // rest: "x y"
-                String[] p = rest.split("\\s+");
-                if (p.length != 2) return;
+        try {
+            switch (action.toUpperCase()) {
 
-                int x = Integer.parseInt(p[0]);
-                int y = Integer.parseInt(p[1]);
+                case "POST": {
+                    // rest: "x y colour message..."
+                    String[] p = rest.split("\\s+", 4);
+                    if (p.length < 4) {
+                        System.out.println("Bad EVENT POST: " + msg);
+                        return;
+                    }
 
-                boardPanel.addPin(new BoardPanel.pinsView(x, y));
-                boardPanel.repaint();
-                break;
+                    int x = Integer.parseInt(p[0]);
+                    int y = Integer.parseInt(p[1]);
+                    String colour = p[2];
+                    String message = p[3];
+
+                    boardPanel.postNote(new BoardPanel.NoteView(x, y, colour, message, false));
+                    boardPanel.repaint();
+                    break;
+                }
+
+                case "PIN": {
+                    // rest: "x y"
+                    String[] p = rest.split("\\s+");
+                    if (p.length != 2) {
+                        System.out.println("Bad EVENT PIN: " + msg);
+                        return;
+                    }
+
+                    int x = Integer.parseInt(p[0]);
+                    int y = Integer.parseInt(p[1]);
+
+                    // IMPORTANT: use the correct class name (PinView vs pinsView)
+                    boardPanel.addPin(new BoardPanel.pinsView(x, y));
+                    boardPanel.repaint();
+                    break;
+                }
+
+                case "UNPIN": {
+                    // rest: "x y"
+                    String[] p = rest.split("\\s+");
+                    if (p.length != 2) {
+                        System.out.println("Bad EVENT UNPIN: " + msg);
+                        return;
+                    }
+
+                    int x = Integer.parseInt(p[0]);
+                    int y = Integer.parseInt(p[1]);
+
+                    boardPanel.removePin(x, y);
+                    boardPanel.repaint();
+                    break;
+                }
+
+                case "CLEAR": {
+                    boardPanel.clearAll();
+                    // if you store pins, also clear pins here:
+                    // boardPanel.clearPins();
+                    boardPanel.repaint();
+                    break;
+                }
+
+                default:
+                    System.out.println("Unknown EVENT: " + msg);
             }
-
-            case "UNPIN": {
-                // rest: "x y"
-                String[] p = rest.split("\\s+");
-                if (p.length != 2) return;
-
-                int x = Integer.parseInt(p[0]);
-                int y = Integer.parseInt(p[1]);
-
-                boardPanel.removePin(x, y);
-                boardPanel.repaint();
-                break;
-            }
-
-            default:
-                System.out.println("Unknown EVENT: " + msg);
+        } catch (NumberFormatException nfe) {
+            System.out.println("Bad number in EVENT: " + msg);
         }
     }
+
 
 
 }

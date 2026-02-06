@@ -114,6 +114,7 @@ public class Client {
     }
 
     public void stopListener() {
+        //Not atomic
         listening.set(false);
         try { socket.close(); } catch (IOException ignored) {}
     }
@@ -123,8 +124,8 @@ public class Client {
         this.onMessage = (onMessage != null) ? onMessage : (m) -> {};
         this.onDisconnect = (onDisconnect != null) ? onDisconnect : (e) -> {};
 
-        if (listening.getAndSet(true)) return; // already running
-
+        // Start atomic
+        if (listening.getAndSet(true)) return;
         listenerThread = new Thread(() -> {
             Exception cause = null;
             try {

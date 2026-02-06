@@ -45,12 +45,9 @@ public class BoardPanel extends JPanel {
         notes.add(j);
     }
 
-    public void postPin(pinsView j){
-        pins.add(j);
-    }
-
     public void clearAll() {
         notes.clear();
+        pins.clear();
     }
 
     @Override
@@ -99,7 +96,7 @@ public class BoardPanel extends JPanel {
 
     //Helpers for adding and removing pins
     public void addPin(pinsView p) {
-        
+
         for (pinsView existing : pins) {
             if (existing.x == p.x && existing.y == p.y) {
                 return;

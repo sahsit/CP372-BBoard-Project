@@ -40,6 +40,7 @@ public class ClientHandler implements Runnable {
                 // after receiving a message, print the socket address and and message to the server console
                 System.out.println("Received from " + s.getRemoteSocketAddress() + ": " + line);
                 
+                
                 // split the line by whitespace (which is what \\s+ means)
                 String[] parts = line.trim().split("\\s+");
 
@@ -48,36 +49,49 @@ public class ClientHandler implements Runnable {
 
                 try {
                     switch (cmd) {
-                        case "POST": handlePost(parts, out);
-                        broadcastLine("EVENT NOTE_ADDED");
-                        break;
-                        case "GET": handleGet(cmd, parts, out); break;
-                        case "PIN": handlePin(parts, out);
-                        broadcastLine("EVENT PIN_ADDED");
-                        break;
-                        case "UNPIN": handleUnpin(parts, out);
-                        broadcastLine("EVENT PIN_REMOVED");
-                        break;
-                        case "CLEAR": board.clear();
-                        out.write("OK CLEARED\n");
-                        broadcastLine("EVENT BOARD_CLEARED");
-                        break;
-                        case "SHAKE":  board.shake();
-                        out.write("OK SHAKE_COMPLETE\n");
-                        broadcastLine("EVENT BOARD_SHAKEN");
-                        break;
-                        case "DISCONNECT": return;
-                        default: out.write("ERR UNKNOWN_COMMAND\n"); break; // MAYBE USE BOARDEXCEPTION FOR THIS?
+                        case "POST":
+                            handlePost(parts, out);
+                            broadcastLine("EVENT POST 10 20 blue hello world"); // hardcoded OK
+                            break;
+
+                        case "GET":
+                            handleGet(cmd, parts, out);
+                            break;
+
+                        case "PIN":
+                            handlePin(parts, out);
+                            broadcastLine("EVENT PIN 70 70"); // hardcoded OK
+                            break;
+
+                        case "UNPIN":
+                            handleUnpin(parts, out);
+                            broadcastLine("EVENT UNPIN 70 70"); // hardcoded OK
+                            break;
+
+                        case "CLEAR":
+                            board.clear();
+                            out.write("OK CLEARED\n");
+                            broadcastLine("EVENT BOARD_CLEARED"); // hardcoded OK
+                            break;
+
+                        case "SHAKE":
+                            board.shake();
+                            out.write("OK SHAKE_COMPLETE\n");
+                            broadcastLine("EVENT BOARD_SHAKEN"); // hardcoded OK
+                            break;
+
+                        case "DISCONNECT":
+                            return;
+
+                        default:
+                            out.write("ERR UNKNOWN_COMMAND\n");
+                            break;
                     }
                     out.flush();
                 } catch (Exception e) {
                     out.write("ERR " + e.getMessage() + "\n");
-                } finally {
-                    CLIENTS.remove(this);
-                    out.write("Client disconnected: " + socket.getRemoteSocketAddress());
+                    out.flush();
                 }
-                out.flush();
-
             }
 
         // catch any IO exceptions during client handling
@@ -85,6 +99,7 @@ public class ClientHandler implements Runnable {
             System.err.println("Client handler error: " + socket.getRemoteSocketAddress());
         // finally block to indicate client disconnection
         } finally {
+            CLIENTS.remove(this);
             System.out.println("Client disconnected: " + socket.getRemoteSocketAddress());
         }
     }

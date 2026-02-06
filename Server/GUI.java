@@ -42,6 +42,10 @@ public class GUI implements ActionListener{
     JTextField unpinX = new JTextField(5);
     JTextField unpinY = new JTextField(5);
 
+    //For sync
+    private int snapshotNotesRemaining = 0;
+    private int snapshotPinsRemaining = 0;
+    private boolean inSnapshot = false;
 
 
 
@@ -53,6 +57,7 @@ public class GUI implements ActionListener{
         try {
             client = new Client(host, port);
             client.readHandshake();
+            client.sendCommand("SYNC");
         } catch (IOException e) {
             JOptionPane.showMessageDialog(null,
                 "Could not connect to server: " + e.getMessage());
@@ -265,6 +270,9 @@ public class GUI implements ActionListener{
             })
         );
 
+        //Get updates from sync
+        sendToServer("SYNC");
+
     }
 
     public static void main(String[] args){
@@ -402,15 +410,80 @@ public class GUI implements ActionListener{
     //Handling the broadcast message
     private void handleServerMessage(String msg) {
         if (msg == null) return;
-
         msg = msg.trim();
         if (msg.isEmpty()) return;
 
-        // If the UI isn't ready yet, don't crash. Just log.
-        if (boardPanel == null) {
-            System.out.println("Received before boardPanel initialized: " + msg);
+        // Start snapshot
+        if (!inSnapshot && msg.startsWith("SNAPSHOT")) {
+            String[] p = msg.split("\\s+");
+            if (p.length != 3) {
+                System.out.println("Bad SNAPSHOT header: " + msg);
+                return;
+            }
+
+            snapshotNotesRemaining = Integer.parseInt(p[1]);
+            snapshotPinsRemaining  = Integer.parseInt(p[2]);
+            inSnapshot = true;
+
+            boardPanel.clearAll(); // must clear notes AND pins
             return;
         }
+
+        // Consume snapshot body
+        if (inSnapshot) {
+
+            // 1) Notes first
+            if (snapshotNotesRemaining > 0) {
+                if (!msg.startsWith("NOTE ")) {
+                    System.out.println("Expected NOTE, got: " + msg);
+                    return;
+                }
+
+                // NOTE x y colour pinned message...
+                String[] p = msg.split("\\s+", 6);
+                if (p.length < 5) {
+                    System.out.println("Bad NOTE line: " + msg);
+                    return;
+                }
+
+                int x = Integer.parseInt(p[1]);
+                int y = Integer.parseInt(p[2]);
+                String colour = p[3];
+                boolean pinned = Boolean.parseBoolean(p[4]);
+                String message = (p.length == 6) ? p[5] : "";
+
+                boardPanel.postNote(new BoardPanel.NoteView(x, y, colour, message, pinned));
+                snapshotNotesRemaining--;
+
+            // 2) Then pins
+            } else if (snapshotPinsRemaining > 0) {
+                if (!msg.startsWith("PIN ")) {
+                    System.out.println("Expected PIN, got: " + msg);
+                    return;
+                }
+
+                String[] p = msg.split("\\s+");
+                if (p.length != 3) {
+                    System.out.println("Bad PIN line: " + msg);
+                    return;
+                }
+
+                int x = Integer.parseInt(p[1]);
+                int y = Integer.parseInt(p[2]);
+
+                boardPanel.addPin(new BoardPanel.pinsView(x, y));
+                snapshotPinsRemaining--;
+            }
+
+            // Finished
+            if (snapshotNotesRemaining == 0 && snapshotPinsRemaining == 0) {
+                inSnapshot = false;
+                boardPanel.repaint();
+            }
+
+            return; // snapshot lines should not fall into EVENT parsing
+        }
+
 
         // Only handle EVENT messages here; everything else is a reply/error/status line.
         if (!msg.startsWith("EVENT")) {

@@ -83,6 +83,10 @@ public class ClientHandler implements Runnable {
                         case "DISCONNECT":
                             return;
 
+                        case "SYNC":
+                            sendSync(out);
+                            break;
+
                         default:
                             out.write("ERR UNKNOWN_COMMAND\n");
                             break;
@@ -286,5 +290,29 @@ public class ClientHandler implements Runnable {
             }
         }
     }
+
+    private void sendSync(BufferedWriter out) throws IOException {
+        // Get full state
+        List<Note> notes = board.getNotes(null, null, null, null); // all notes
+        List<Board.Point> pins = board.getPins();
+
+        // Header tells client counts
+        out.write("SNAPSHOT " + notes.size() + " " + pins.size() + "\n");
+
+        // Notes
+        for (Note n : notes) {
+            // Keep it parseable: last field is message (could contain spaces)
+            // Format: NOTE x y color pinned message...
+            out.write("NOTE " + n.x + " " + n.y + " " + n.color + " " + n.isPinned + " " + n.message + "\n");
+        }
+
+        // Pins
+        for (Board.Point p : pins) {
+            out.write("PIN " + p.x + " " + p.y + "\n");
+        }
+
+        out.flush();
+    }
+
     
 }

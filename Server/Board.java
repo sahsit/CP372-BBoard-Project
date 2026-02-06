@@ -116,6 +116,42 @@ public class Board {
            
         }
 
+        public synchronized List<Note> getNotes(String color, Integer x, Integer y, String message) {
+            List<Note> results = new ArrayList<>();
+
+            for (Note n : notes) {
+                // check and compare the color
+                if (color != null && n.color.equals(color) != true) {
+                    continue;
+                }
+
+                // check if the user point is inside of a note
+                if (x != null && y != null) {
+                    if (doesNoteContainPin(n, x, y) != true) {
+                        continue;
+                    }
+                }
+
+                // search messages of remaining notes
+                if (message != null && n.message.toLowerCase().contains(message.toLowerCase()) != true) {
+                    continue;
+                }
+
+                Note resultNote = new Note(n.x, n.y, n.color, n.message);
+                resultNote.isPinned = isNotePinned(n);
+
+                results.add(resultNote);
+                
+            }
+            return results;
+        }
+
+        public synchronized List<Point> getPins() {
+            return new ArrayList<>(pins);
+        }
+
+        //--------- HELPER METHODS ---------//
+        
         private boolean inBoard(int x, int y) {
             return x >= 0 && x < cfg.boardW && y >= 0 && y < cfg.boardH;
         }
@@ -136,6 +172,7 @@ public class Board {
             }
             return false;
         }
+
 
 
 }

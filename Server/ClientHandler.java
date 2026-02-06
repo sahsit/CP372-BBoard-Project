@@ -1,14 +1,17 @@
 import java.io.*;
 import java.net.*;
+import java.util.*;
 
 // Class to handle client connections
 public class ClientHandler implements Runnable {
     private final Socket socket; // client socket
     private final Config config; // server configuration
+    private final Board board;
 
     ClientHandler(Socket socket, Config config, Board board) {
         this.socket = socket;
         this.config = config;
+        this.board = board;
     }
 
     @Override
@@ -30,18 +33,28 @@ public class ClientHandler implements Runnable {
                 // after receiving a message, print the socket address and and message to the server console
                 System.out.println("Received from " + s.getRemoteSocketAddress() + ": " + line);
                 
-                // PROCESS CLIENT COMMANDS BELOW - UNFINISHED, ONLY KNOWS DISCONNECT 
+                // split the line by whitespace (which is what \\s+ means)
+                String[] parts = line.trim().split("\\s+");
 
-                // if client sends DISCONNECT command, respond and break the loop to end connection
-                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
-                    out.write("OK 0\n");
+                // the "command" part of the instruction is always the first part (index 0)
+                String cmd = parts[0].toUpperCase();
+
+                try {
+                    switch (cmd) {
+                        case "POST": handlePost(parts, out); break;
+                        case "GET": handleGet(cmd, parts, out); break;
+                        case "PIN": handlePin(parts, out); break;
+                        case "UNPIN": handleUnpin(parts, out); break;
+                        case "CLEAR": board.clear(); out.write("OK CLEARED\n"); break;
+                        case "SHAKE":  board.shake(); out.write("OK SHAKE_COMPLETE\n"); break;
+                        case "DISCONNECT": return;
+                        default: out.write("ERR UNKNOWN_COMMAND\n"); break; // MAYBE USE BOARDEXCEPTION FOR THIS?
+                    }
                     out.flush();
-                    break;
-                } else {
-                    // temporary generic fallback response - more robust error catching later
-                    out.write("OK 0\n");
-                    out.flush();
+                } catch (Exception e) {
+                    out.write("ERR " + e.getMessage() + "\n");
                 }
+                out.flush();
 
             }
 
@@ -65,5 +78,155 @@ public class ClientHandler implements Runnable {
         out.flush();
     }
 
+    // if the command is "GET"...
+    private void handleGet(String cmd, String[] parts, BufferedWriter out) throws IOException {
+        
+        if (cmd.equals("GET") == true) {
+            // ... check if it's a GET PINS command
+            if (parts.length > 1 && parts[1].equalsIgnoreCase("PINS")) {
+                handleGetPins(cmd, parts, out);
+            } else {
+                // ... or just a filtered GET command
+                handleFilteredGet(parts, out);
+            }
+
+
+        }
+        //return null;
+        // add real return
+    }
+
+    // if the command is the filtered "GET"...
+    private void handleFilteredGet(String[] parts, BufferedWriter out) throws IOException {
+        //assuming the GUI sends: GET colour=<color> contains=<x> <y> refersTo=<message>
+        // parts[0] = GET
+        // parts[1] = colour=blue
+        // parts[2] = contains=50
+        // parts[3] = 50
+        // parts[4] = refersTo=refridgerator
+
+        // if the user leaves any of the GET fields blank (i.e. they dont want to filter by color), then the GUI should send "null" for that field 
+
+        // color filter
+        String rawColor = parts[1].split("=")[1];
+        String filterColor;
+        if (rawColor.equalsIgnoreCase("null")) {
+            filterColor = null;
+        } else {
+            filterColor = rawColor;
+        }
+
+        //coordinates filter
+        Integer filterX = null;
+        Integer filterY = null;
+        if (parts[2].endsWith("null") != true) {
+            // Only parse if it's a real number
+            filterX = Integer.parseInt(parts[2].split("=")[1]); 
+            filterY = Integer.parseInt(parts[3]);
+        }
+
+        // message filter
+        String rawSearch = parts[4].split("=")[1];
+        String filterSearch;
+        if (rawSearch.equalsIgnoreCase("null")) {
+            filterSearch = null;
+        } else {
+            filterSearch = rawSearch;
+        }
+
+        List<Note> results = board.getNotes(filterColor, filterX, filterY, filterSearch);
+
+        out.write("OK " + results.size() + "\n");
+        for (Note n : results) {
+            out.write("NOTE " + n.x + " " + n.y + " " + n.color + " " + n.message + " PINNED=" + n.isPinned + "\n");
+        }
+
+        //need to add return statement
+        //return null;
+    }
+    
+
+    // if the command is "GET"...
+    private void handleGetPins(String cmd, String[] parts, BufferedWriter out) throws IOException {
+        List<Board.Point> pinList = board.getPins();
+        out.write("OK " + pinList.size() + "\n");
+        for (Board.Point p : pinList) {
+            out.write("PIN " + p.x + " " + p.y + "\n");
+        }
+
+        out.flush();
+    
+    }
+
+    private void handlePost(String[] parts, BufferedWriter out) throws IOException {
+        try {
+        // parts[0] is "POST"
+        int x = Integer.parseInt(parts[1]);
+        int y = Integer.parseInt(parts[2]);
+        String color = parts[3];
+
+        // Everything from parts[4] to the end is the message
+        StringBuilder messageBuilder = new StringBuilder();
+        for (int i = 4; i < parts.length; i++) {
+            messageBuilder.append(parts[i]);
+            // Add a space back between words, but not after the last word
+            if (i < parts.length - 1) {
+                messageBuilder.append(" ");
+            }
+        }
+
+        String message = messageBuilder.toString();
+        
+        board.post(x, y, color, message);
+        out.write("OK NOTE_POSTED\n");
+        } catch (NumberFormatException e) {
+            // If x or y weren't numbers
+            out.write("ERROR Invalid coordinates. Usage: POST x y color message\n");
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // If the user forgot a parameter (e.g., just sent "POST 10 10")
+            out.write("ERROR Missing parameters. Usage: POST x y color message\n");
+        } catch (Exception e) {
+            // Any other unexpected error
+            out.write("ERROR " + e.getMessage() + "\n");
+        }
+        out.flush();
+    }
+
+    private void handlePin(String[] parts, BufferedWriter out) throws IOException {
+        try {
+            int x = Integer.parseInt(parts[1]);
+            int y = Integer.parseInt(parts[2]);
+
+            board.pin(x, y);
+            out.write("OK PIN_ADDED\n");
+        } catch (NumberFormatException e) {
+            out.write("ERROR Invalid coordinates. Usage: PIN x y\n");
+        } catch (ArrayIndexOutOfBoundsException e) {
+            out.write("ERROR Missing parameters. Usage: PIN x y\n");
+        } catch (Exception e) {
+            out.write("ERROR " + e.getMessage() + "\n");
+        }
+        out.flush();
+    }
+
+    private void handleUnpin(String[] parts, BufferedWriter out) throws IOException {
+        try {
+            int x = Integer.parseInt(parts[1]);
+            int y = Integer.parseInt(parts[2]);
+
+            board.unpin(x, y);
+            out.write("OK\n");
+        } catch (NumberFormatException e) {
+            out.write("ERROR Invalid coordinates. Usage: UNPIN x y\n");
+        } catch (ArrayIndexOutOfBoundsException e) {
+            out.write("ERROR Missing parameters. Usage: UNPIN x y\n");
+        } catch (Exception e) {
+            out.write("ERROR " + e.getMessage() + "\n");
+        }
+        out.flush();
+    }
+
+    
+        
 
 }

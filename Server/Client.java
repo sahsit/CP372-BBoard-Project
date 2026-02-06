@@ -127,11 +127,23 @@ public class Client {
                 System.out.print("\n");
                 String line = in.readLine();
 
+                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
+                    break;
+                }
+
                 String response = client.sendCommand(line);
                 System.out.println(response);
 
-                if (line.trim().equalsIgnoreCase("DISCONNECT")) {
-                    break;
+                String[] parts = response.split("\\s+");
+
+                if (parts[0].equalsIgnoreCase("OK") && parts.length > 1) {
+                    try {
+                        int extraLines = Integer.parseInt(parts[1]);
+                        for (int i = 0; i < extraLines; i++) {
+                            System.out.println(client.in.readLine());
+                        }
+                    } catch (Exception e) {
+                    }
                 }
             }
 

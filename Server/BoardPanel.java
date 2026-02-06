@@ -10,6 +10,7 @@ public class BoardPanel extends JPanel {
         public final String message;
         public boolean pinned;
 
+        //Client side of server's note (just a view)
         public NoteView(int x, int y, String colour, String message, boolean pinned) {
             this.x = x; this.y = y;
             this.colour = colour;
@@ -18,8 +19,19 @@ public class BoardPanel extends JPanel {
         }
     }
 
+    public static class pinsView {
+        public final int x, y;
+
+        public pinsView(int x, int y){
+            this.x = x;
+            this.y = y;
+        }    
+        
+    }
+
     private final int noteW, noteH;
     private final List<NoteView> notes = new ArrayList<>();
+    private final List<pinsView> pins = new ArrayList<>();
 
     public BoardPanel(int boardW, int boardH, int noteW, int noteH) {
         this.noteW = noteW;
@@ -28,17 +40,13 @@ public class BoardPanel extends JPanel {
         setBackground(Color.LIGHT_GRAY);
     }
 
-    // Called on EDT
-    public void upsertNote(NoteView nv) {
-        // If your rules guarantee complete overlap = same x,y, we can key by x,y
-        for (int i = 0; i < notes.size(); i++) {
-            NoteView existing = notes.get(i);
-            if (existing.x == nv.x && existing.y == nv.y) {
-                notes.set(i, nv);
-                return;
-            }
-        }
-        notes.add(nv);
+    
+    public void postNote(NoteView j) {
+        notes.add(j);
+    }
+
+    public void postPin(pinsView j){
+        pins.add(j);
     }
 
     public void clearAll() {
@@ -47,10 +55,12 @@ public class BoardPanel extends JPanel {
 
     @Override
     protected void paintComponent(Graphics g) {
+        //Clears old and resets background
         super.paintComponent(g);
 
-        // draw each note
+        //Loop through each note and draw each
         for (NoteView n : notes) {
+
             Color fill = parseColour(n.colour);
             g.setColor(fill);
             g.fillRect(n.x, n.y, noteW, noteH);
@@ -58,28 +68,48 @@ public class BoardPanel extends JPanel {
             g.setColor(Color.BLACK);
             g.drawRect(n.x, n.y, noteW, noteH);
 
-            // message (simple)
+            //Write message
             String text = n.message == null ? "" : n.message;
-            g.drawString(text.length() > 18 ? text.substring(0, 18) + "…" : text,
-                    n.x + 4, n.y + 16);
+            g.drawString(text.length() > 18 ? text.substring(0, 18) + "…" : text, n.x + 4, n.y + 16);
+        }
 
-            // pinned indicator
-            if (n.pinned) {
-                g.drawString("📌", n.x + noteW - 18, n.y + 16);
-            }
+        g.setColor(Color.RED);
+        int r = 4; // radius
+
+        for (pinsView p : pins) {
+            g.fillOval(p.x - r, p.y - r, 2 * r, 2 * r);
         }
     }
 
+    //Helper to get colour, used for note posting
     private Color parseColour(String c) {
-        if (c == null) return Color.WHITE;
+    
         switch (c.toLowerCase()) {
+
             case "red": return Color.RED;
             case "blue": return Color.BLUE;
             case "green": return Color.GREEN;
             case "yellow": return Color.YELLOW;
             case "black": return Color.DARK_GRAY;
             case "white": return Color.WHITE;
-            default: return Color.PINK; // unknown colour fallback
+            //Default is black, this list needs to include possible colours from server, if not true then black will be added
+            default: return Color.BLACK;
         }
     }
+
+    //Helpers for adding and removing pins
+    public void addPin(pinsView p) {
+        
+        for (pinsView existing : pins) {
+            if (existing.x == p.x && existing.y == p.y) {
+                return;
+            }
+        }
+        pins.add(p);
+    }
+
+    public void removePin(int x, int y) {
+        pins.removeIf(p -> p.x == x && p.y == y);
+    }
+
 }

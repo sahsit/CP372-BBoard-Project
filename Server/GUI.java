@@ -398,6 +398,7 @@ public class GUI implements ActionListener{
         }).start();
     }
 
+    //Handling the broadcast message
     private void handleServerMessage(String msg) {
         if (msg == null || msg.isBlank()) return;
 
@@ -428,18 +429,34 @@ public class GUI implements ActionListener{
                 String colour = p[2];
                 String message = p[3];
 
-                boardPanel.upsertNote(new BoardPanel.NoteView(x, y, colour, message, false));
+                boardPanel.postNote(new BoardPanel.NoteView(x, y, colour, message, false));
+                boardPanel.repaint();
+                break;
+            } case "PIN": {
+                // rest: "x y"
+                String[] p = rest.split("\\s+");
+                if (p.length != 2) return;
+
+                int x = Integer.parseInt(p[0]);
+                int y = Integer.parseInt(p[1]);
+
+                boardPanel.addPin(new BoardPanel.pinsView(x, y));
                 boardPanel.repaint();
                 break;
             }
 
-            case "CLEAR": {
-                boardPanel.clearAll();
+            case "UNPIN": {
+                // rest: "x y"
+                String[] p = rest.split("\\s+");
+                if (p.length != 2) return;
+
+                int x = Integer.parseInt(p[0]);
+                int y = Integer.parseInt(p[1]);
+
+                boardPanel.removePin(x, y);
                 boardPanel.repaint();
                 break;
             }
-
-            // You can add PIN/UNPIN/SHAKE the same way once the server broadcasts them.
 
             default:
                 System.out.println("Unknown EVENT: " + msg);

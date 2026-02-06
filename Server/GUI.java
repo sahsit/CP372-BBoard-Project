@@ -15,6 +15,7 @@ public class GUI implements ActionListener{
     int count = 0;
     JLabel label;
     
+    private BoardPanel boardPanel;
 
     JButton postButton;
     JButton getButton;
@@ -60,8 +61,7 @@ public class GUI implements ActionListener{
 
         client.startListener(
             msg -> SwingUtilities.invokeLater(() -> handleServerMessage(msg)),
-            ex  -> SwingUtilities.invokeLater(() -> {
-                JOptionPane.showMessageDialog(frame, "Disconnected from server.");
+            ex  -> SwingUtilities.invokeLater(() -> {JOptionPane.showMessageDialog(frame, "Disconnected from server.");
             })
         );
 
@@ -71,10 +71,9 @@ public class GUI implements ActionListener{
         frame.setLayout(new BorderLayout());
 
         //Board
-        JPanel board = new JPanel();
-        board.setPreferredSize(new Dimension(client.boardW, client.boardH));
-        board.setBackground(Color.LIGHT_GRAY); // visual aid
-        frame.add(board, BorderLayout.CENTER);
+        BoardPanel boardPanel = new BoardPanel(client.boardW, client.boardH, client.noteW, client.noteH);
+        frame.add(boardPanel, BorderLayout.CENTER);
+
 
         //Button Panel
         JPanel buttons = new JPanel();
@@ -400,8 +399,52 @@ public class GUI implements ActionListener{
     }
 
     private void handleServerMessage(String msg) {
-        System.out.println("FROM SERVER: " + msg);
-        // Later you'll parse and update the GUI/board model here
+        if (msg == null || msg.isBlank()) return;
+
+        // Example expected:
+        // EVENT POST 10 20 red hello world
+        // EVENT CLEAR
+        String[] parts = msg.trim().split("\\s+", 3); // kind + action + rest
+        if (parts.length < 2) return;
+
+        String kind = parts[0];
+        String action = parts[1];
+        String rest = (parts.length == 3) ? parts[2] : "";
+
+        if (!kind.equalsIgnoreCase("EVENT")) {
+            // could be REPLY/ERROR; show somewhere
+            System.out.println("FROM SERVER (non-event): " + msg);
+            return;
+        }
+
+        switch (action.toUpperCase()) {
+            case "POST": {
+                // rest: "x y colour message..."
+                String[] p = rest.split("\\s+", 4); // x y colour message...
+                if (p.length < 4) return;
+
+                int x = Integer.parseInt(p[0]);
+                int y = Integer.parseInt(p[1]);
+                String colour = p[2];
+                String message = p[3];
+
+                boardPanel.upsertNote(new BoardPanel.NoteView(x, y, colour, message, false));
+                boardPanel.repaint();
+                break;
+            }
+
+            case "CLEAR": {
+                boardPanel.clearAll();
+                boardPanel.repaint();
+                break;
+            }
+
+            // You can add PIN/UNPIN/SHAKE the same way once the server broadcasts them.
+
+            default:
+                System.out.println("Unknown EVENT: " + msg);
+        }
     }
+
 
 }

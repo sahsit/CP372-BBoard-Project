@@ -109,4 +109,17 @@ public class BoardPanel extends JPanel {
         pins.removeIf(p -> p.x == x && p.y == y);
     }
 
+    // For GET and GETPINS
+    public void setNotes(List<NoteView> newNotes) {
+        this.notes.clear();
+        this.notes.addAll(newNotes);
+        repaint();
+    }
+
+    public void setPins(List<pinsView> newPins) {
+        this.pins.clear();
+        this.pins.addAll(newPins);
+        repaint();
+    }
+
 }

@@ -2,6 +2,7 @@
 import java.net.*;
 import java.util.*;
 
+// Main server class to start the server and listen for incoming client connections
 public class Server {
     
     // main method to start the server
@@ -11,6 +12,7 @@ public class Server {
             // this variable is of type "Config", defined in Config.java and is made to hold all the configuration parameters
             Config configuration = parseArgs(args);
 
+            // create the bulletin board using the configuration parameters, this variable is of type "Board", defined in Board.java
             Board board = new Board(configuration);
 
             // create the server socket to listen for incoming connections using the port given

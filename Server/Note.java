@@ -1,3 +1,5 @@
+
+// class to represent a note on the board
 public class Note {
     public final int x, y;
     public final String color;

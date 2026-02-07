@@ -4,13 +4,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 // Class to handle client connections
+// one instance of this class is created for every client that connects to the server, and it runs in its own thread to handle communication with that client
 public class ClientHandler implements Runnable {
+    // a set to keep track of all connected clients, so that we can broadcast messages to all clients when the board state changes (e.g. when a new note is posted)
     private static final Set<ClientHandler> CLIENTS = ConcurrentHashMap.newKeySet();
     private final Socket socket; // client socket
     private final Config config; // server configuration
     private final Board board;
     private BufferedWriter out; // output stream to client
-    private final Object outLock = new Object(); // lock for synchronizing writes to client
+    private final Object outLock = new Object(); // if two threads try talking to the client at once, outLock ensures one finishes before the other starts
 
     ClientHandler(Socket socket, Config config, Board board) {
         this.socket = socket;
@@ -29,7 +31,7 @@ public class ClientHandler implements Runnable {
         ) {
             
             this.out = out;
-            CLIENTS.add(this);
+            CLIENTS.add(this); // register the user in the CLIENTS set 
 
             // start handshake process with client
             sendHandshake(out, config);
@@ -47,9 +49,11 @@ public class ClientHandler implements Runnable {
                 // the "command" part of the instruction is always the first part (index 0)
                 String cmd = parts[0].toUpperCase();
 
+                // switch statement to handle different commands, with a try-catch block to catch any exceptions thrown by the Board methods
                 try {
                     switch (cmd) {
                         case "POST": {
+                            // all commands are handled by a helper method
                             String event = handlePost(parts);
                             broadcastLine(event);
                             break;
@@ -59,17 +63,13 @@ public class ClientHandler implements Runnable {
                             break;
 
                         case "PIN":
-                            handlePin(parts, out);
-                            int x1 = Integer.parseInt(parts[1]);
-                            int y1 = Integer.parseInt(parts[2]);
-                            broadcastLine("EVENT PIN " + x1 + " " + y1);
+                            String event = handlePin(parts);
+                            broadcastLine(event);
                             break;
 
                         case "UNPIN":
-                            handleUnpin(parts, out);
-                            int x2 = Integer.parseInt(parts[1]);
-                            int y2 = Integer.parseInt(parts[2]);
-                            broadcastLine("EVENT UNPIN " + x2 + " " + y2);
+                            String event1 = handleUnpin(parts);
+                            broadcastLine(event1);
                             break;
 
                         case "CLEAR":
@@ -137,8 +137,6 @@ public class ClientHandler implements Runnable {
 
 
         }
-        //return null;
-        // add real return
     }
 
     // if the command is the filtered "GET"...
@@ -189,8 +187,6 @@ public class ClientHandler implements Runnable {
             out.write("NOTE " + n.x + " " + n.y + " " + n.color + " " + n.message + " PINNED=" + n.isPinned + "\n");
         }
 
-        //need to add return statement
-        //return null;
     }
     
 
@@ -226,26 +222,26 @@ public class ClientHandler implements Runnable {
         return ("EVENT POST " + x + " " + y + " " + color + " " + message);
     }
 
-    private void handlePin(String[] parts, BufferedWriter out) throws Exception {
-
+    private String handlePin(String[] parts) throws Exception {
         int x = Integer.parseInt(parts[1]);
         int y = Integer.parseInt(parts[2]);
-
+    
         board.pin(x, y);
-        out.write("OK PIN_ADDED\n");
-
-        out.flush();
+    
+        sendLine("OK PIN_ADDED");
+    
+        return ("EVENT PIN " + x + " " + y);
     }
 
-    private void handleUnpin(String[] parts, BufferedWriter out) throws Exception {
-
+    private String handleUnpin(String[] parts) throws Exception {
         int x = Integer.parseInt(parts[1]);
         int y = Integer.parseInt(parts[2]);
-
+    
         board.unpin(x, y);
-        out.write("OK\n");
-
-        out.flush();
+    
+        sendLine("OK UNPINNED");
+    
+        return ("EVENT UNPIN " + x + " " + y);
     }
 
 

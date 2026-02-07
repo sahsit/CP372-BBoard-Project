@@ -6,13 +6,15 @@ public class Board {
     private final Config cfg;
     // List to hold notes
     private final List<Note> notes = new ArrayList<>();
-    // Hashmap to hold pin coordinates and counts 
+    // hashset to hold pins, so we can check if a pin exists in O(1) time
     // "Point" will be a custom class that holds a pin's x, y coordinates 
     private final Set<Point> pins = new HashSet<>();
 
+    // constructor to initialize the board with the given configuration
     public Board(Config cfg) {
         this.cfg = cfg;
     }
+
 
     // Class to represent a pin on the board
     public static final class Point {
@@ -60,10 +62,12 @@ public class Board {
             pins.clear();
         }
 
+        // SHAKE removes all unpinned notes
         public synchronized void shake() {
             notes.removeIf(n -> !isNotePinned(n));
         }
 
+        // POST adds a new note to the board
         public synchronized void post(int x, int y, String color, String message) throws BoardException {
             if (cfg.colors.contains(color) != true) {
                 throw new BoardException("COLOUR_NOT_SUPPORTED", color + " is not a supported color");
@@ -84,6 +88,7 @@ public class Board {
             
         }
 
+        // PIN adds a pin to the board
         public synchronized void pin(int x, int y) throws BoardException {
             if (inBoard(x, y) != true) {
                 throw new BoardException("OUT_OF_BOUNDS ", "Coordinate (" + x + ", " + y + ") is out of bounds");
@@ -98,7 +103,8 @@ public class Board {
             if (hit != true) {
                 throw new BoardException("NO_NOTE_AT_COORDINATE ", "Coordinate (" + x + ", " + y + ") does not contain a note");
             }
-
+            
+            // we're using the hashset here to quickly make a new point based on the user's coordinates and check if it exists in the hashset (using its hash code)
             if (pins.contains(new Point(x, y)) == true) {
                 throw new BoardException("PIN_ALREADY_EXISTS ", "Coordinate (" + x + ", " + y + ") already contains a pin");
             }
@@ -106,6 +112,7 @@ public class Board {
             pins.add(new Point(x, y));
         }
 
+        // UNPIN removes a pin from the board
         public synchronized void unpin(int x, int y) throws BoardException {
             if (inBoard(x, y) != true) {
                 throw new BoardException("OUT_OF_BOUNDS ", "Coordinate (" + x + ", " + y + ") is out of bounds");
@@ -120,6 +127,7 @@ public class Board {
            
         }
 
+        // GET returns a list of notes that match the given search criteria
         public synchronized List<Note> getNotes(String color, Integer x, Integer y, String message) {
             List<Note> results = new ArrayList<>();
 
@@ -129,7 +137,7 @@ public class Board {
                     continue;
                 }
 
-                // check if the user point is inside of a note
+                // check if the user's point is inside of a note
                 if (x != null && y != null) {
                     if (doesNoteContainPin(n, x, y) != true) {
                         continue;
@@ -141,6 +149,8 @@ public class Board {
                     continue;
                 }
 
+                // when we find a note that matches the criteria, we make a copy of it and set its isPinned field to true if it is pinned, then we add the copy to the results list
+                // we don't change the original note's isPinned field because that would alter the actual board state, which would make concurrent clients boards complex
                 Note resultNote = new Note(n.x, n.y, n.color, n.message);
                 resultNote.isPinned = isNotePinned(n);
 
@@ -150,24 +160,29 @@ public class Board {
             return results;
         }
 
+        // GET PINS returns a list of all pins on the board
         public synchronized List<Point> getPins() {
             return new ArrayList<>(pins);
         }
 
         //--------- HELPER METHODS ---------//
         
+        // helper method to check if a coordinate is within the board boundaries
         private boolean inBoard(int x, int y) {
             return x >= 0 && x < cfg.boardW && y >= 0 && y < cfg.boardH;
         }
 
+        // helper method to check if a note fits within the board boundaries based on its top-left corner coordinates
         private boolean noteFits(int x, int y) {
             return x >= 0 && (x + cfg.noteW) <= cfg.boardW && y >= 0 && (y + cfg.noteH) <= cfg.boardH;
         }
 
+        // helper method to check if a note contains a pin based on the note's coordinates and dimensions
         private boolean doesNoteContainPin(Note n, int x, int y) {
             return x >= n.x && x < (n.x + cfg.noteW) && y >= n.y && y < (n.y + cfg.noteH);
         }
 
+        // helper method to check if a note is pinned by checking if any of the pins are within the note's area
         private boolean isNotePinned(Note n) {
             for (Point p : pins) {
                 if (doesNoteContainPin(n, p.x, p.y) == true) {

@@ -1,3 +1,6 @@
+package server;
+
+
 import java.util.*;
 
 // Class to represent the bulletin board

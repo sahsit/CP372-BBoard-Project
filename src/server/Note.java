@@ -1,4 +1,5 @@
 
+package server;
 // class to represent a note on the board
 public class Note {
     public final int x, y;

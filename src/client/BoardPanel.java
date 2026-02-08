@@ -1,3 +1,6 @@
+package client;
+
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
@@ -52,10 +55,10 @@ public class BoardPanel extends JPanel {
 
     @Override
     protected void paintComponent(Graphics g) {
-        //Clears old and resets background
+        //Resets
         super.paintComponent(g);
 
-        //Loop through each note and draw each
+        //Loop each note
         for (NoteView n : notes) {
 
             Color fill = parseColour(n.colour);
@@ -71,14 +74,14 @@ public class BoardPanel extends JPanel {
         }
 
         g.setColor(Color.RED);
-        int r = 4; // radius
+        int r = 4;
 
         for (pinsView p : pins) {
             g.fillOval(p.x - r, p.y - r, 2 * r, 2 * r);
         }
     }
 
-    //Helper to get colour, used for note posting
+    
     private Color parseColour(String c) {
     
         switch (c.toLowerCase()) {
@@ -121,5 +124,23 @@ public class BoardPanel extends JPanel {
         this.pins.addAll(newPins);
         repaint();
     }
+
+    //Shake
+    public void shakeUnpinnedNotes() {
+        notes.removeIf(n -> !noteHasPin(n));
+        repaint();
+    }
+
+    //Helper
+    private boolean noteHasPin(NoteView n) {
+        for (pinsView p : pins) {
+            if (p.x >= n.x && p.x < (n.x + noteW) &&
+                p.y >= n.y && p.y < (n.y + noteH)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
 }

@@ -1,3 +1,5 @@
+package server;
+
 import java.util.*;
 
 // Class to hold server configuration parameters
